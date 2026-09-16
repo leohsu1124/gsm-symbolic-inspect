@@ -10,7 +10,7 @@ fallback_version = "0.0.0+unknown"
 
 [tool.setuptools.packages.find]
 where = ["src"]
-include = ["examples*", "utils*"]
+include = ["examples*", "utils*", "gsm_symbolic*"]
 
 [tool.setuptools.package-data]
 "*" = ["eval.yaml"]
@@ -91,7 +91,7 @@ warn_redundant_casts = true
 warn_unused_configs = true
 
 [[tool.mypy.overrides]]
-module = ["examples.*", "utils.*"]
+module = ["examples.*", "utils.*", "gsm_symbolic.*"]
 warn_return_any = true
 disallow_untyped_defs = true
 disallow_any_generics = true
@@ -114,9 +114,9 @@ module = ["add_readme_section", "generate_readmes"]
 ignore_missing_imports = true
 
 [project]
-name = "inspect-eval-template"
-description = "Template for Inspect AI evaluations"
-authors = [{ name = "Your Name" }]
+name = "gsm_symbolic"
+description = "GSM-Symbolic (Mirzadeh et al., 2024) implemented in Inspect AI"
+authors = [{ name = "Leo Hsu" }]
 readme = "README.md"
 requires-python = ">=3.11"
 license = "MIT"
@@ -134,23 +134,16 @@ classifiers = [
 dependencies = [
     "inspect_ai>=0.3.158",
     "pyyaml>=5.1.0",
-    # USER: Add your eval's dependencies here
+    "datasets>=3.0.0",
+    "huggingface_hub>=0.23.0",
 ]
 
 [project.urls]
-# USER: Update these URLs
-"Source Code" = "https://github.com/your-org/your-eval"
-"Issue Tracker" = "https://github.com/your-org/your-eval/issues"
+"Source Code" = "https://github.com/leohsu1124/gsm-symbolic-inspect"
+"Issue Tracker" = "https://github.com/leohsu1124/gsm-symbolic-inspect/issues"
 
-# Register each evaluation so Inspect can discover it.
-# Example (uncomment and adapt):
-#   my_eval = "my_eval"
-#
-# This registers the "my_eval" package so that
-# `inspect eval my_eval/task_name` works. The __init__.py
-# should export your @task functions.
-# Note: examples are NOT registered -- only your evaluations under src/.
 [project.entry-points.inspect_ai]
+gsm_symbolic = "gsm_symbolic"
 
 [dependency-groups]
 dev = [
