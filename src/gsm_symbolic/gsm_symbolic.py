@@ -7,13 +7,21 @@ https://github.com/apple/ml-gsm-symbolic
 """
 
 from typing import Any
+import re, math
 
 from inspect_ai import Task, task
 from inspect_ai.dataset import Sample, hf_dataset
 from inspect_ai.scorer import (
-    match,
+    CORRECT,
+    INCORRECT,
+    Score,
+    Scorer,
+    Target,
+    accuracy,
+    scorer,
+    stderr,
 )
-from inspect_ai.solver import generate, prompt_template
+from inspect_ai.solver import TaskState, generate, prompt_template
 
 DATASET_PATH = "apple/GSM-Symbolic"
 DATASET_REVISION = "93b5b3758d9d9841ffe81d6cd2ae2b030685b078"
@@ -24,7 +32,7 @@ PROMPT_INSTRUCTION = """ As an expert problem solver, solve step by step the fol
 FEWSHOT_EXAMPLES: list[tuple[str, str, str]] = [
     ("There are 15 trees in the grove. Grove workers will plant trees in the grove today. After they are done, there will be 21 trees. How many trees did the grove workers plant today?",
     "There are 15 trees originally. Then there were 21 trees after some more were planted. So there must have been 21 - 15 = 6.", "6"), 
-    ("If there are 3 cars in the parking lot and 2 more cars arrive, how many cars are in the parking lot?", "There are originally 3 cars. 2 more cars arrive. 3 + 2 = 5. The answer is 5.","5"), 
+    ("If there are 3 cars in the parking lot and 2 more cars arrive, how many cars are in the parking lot?", "There are originally 3 cars. 2 more cars arrive. 3 + 2 = 5.","5"), 
     ("Leah had 32 chocolates and her sister had 42. If they ate 35, how many pieces do they have left in total?","Originally, Leah had 32 chocolates. Her sister had 42. So in total they had 32 + 42 = 74. After eating 35, they had 74 - 35 = 39.","39"), 
     ("Jason had 20 lollipops. He gave Denny some lollipops. Now Jason has 12 lollipops. How many lollipops did Jason give to Denny?","Jason started with 20 lollipops. Then he had 12 after giving some to Denny. So he gave Denny 20 - 12 = 8.","8"),
     ("Shawn has five toys. For Christmas, he got two toys each from his mom and dad. How many toys does he have now?","Shawn started with 5 toys. If he got 2 toys each from his mom and dad, then that is 4 more toys. 5 + 4 = 9.","9"),
@@ -60,6 +68,38 @@ def record_to_sample(record: dict[str, Any]) -> Sample:
     }
     return Sample(id=sample_id, input=sample_input, target=target, metadata=metadata)
 
+def extract_final_answer(response: str) -> float | None:
+    """Return the last number in a response, per the authors' heuristic.
+ 
+    Returns None (instead of raising, as the reference code does) when the
+    response contains no number.
+    """
+    # Drop anything after the model starts writing a new question.
+    response = response.split("\nQ:")[0]
+    numbers = re.findall(r"-?\d+\.?\d*", response.replace(",", ""))
+    if not numbers:
+        return None
+    return float(numbers[-1])
+ 
+ 
+@scorer(metrics=[accuracy(), stderr(cluster="template_id")])
+def gsm_symbolic_scorer() -> Scorer:
+    """Score by numeric equality of the last number in the response."""
+ 
+    async def score(state: TaskState, target: Target) -> Score:
+        response = state.output.completion
+        predicted = extract_final_answer(response)
+        expected = float(target.text.replace(",", ""))
+        correct = predicted is not None and math.isclose(
+            predicted, expected, rel_tol=1e-6, abs_tol=1e-6
+        )
+        return Score(
+            value=CORRECT if correct else INCORRECT,
+            answer=None if predicted is None else str(predicted),
+            explanation=response,
+        )
+ 
+    return score
 
 @task
 def gsm_symbolic(
@@ -87,5 +127,5 @@ def gsm_symbolic(
             sample_fields=record_to_sample,
         ),
         solver=solver,
-        scorer=match(),
+        scorer=gsm_symbolic_scorer(),
     )
